@@ -1,0 +1,16 @@
+# S3-compatible storage (MinIO) is added in Module 2 when document upload is built.
+# Local infrastructure only (the API itself runs with `uv run uvicorn`).
+services:
+  postgres:
+    image: pgvector/pgvector:pg17   # Postgres + pgvector, needed from the knowledge-base module on
+    environment:
+      POSTGRES_USER: supportai
+      POSTGRES_PASSWORD: supportai
+      POSTGRES_DB: supportai
+    ports: ["5433:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+volumes:
+  pgdata:
