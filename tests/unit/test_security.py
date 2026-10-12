@@ -1,3 +1,5 @@
+# Unit tests for passwords and tokens. No database. Includes attack cases: tampered token,
+#   expired token, 'alg: none'.
 """Unit tests for password hashing and token handling (no database, no HTTP)."""
 
 import uuid

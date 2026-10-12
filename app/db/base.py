@@ -1,3 +1,7 @@
+# What is this file?   The base class of all database table classes + shared columns.
+# Flutter/Dart idea:   with Drift/Floor you write table classes. `Base` is the parent
+#                      of all of them. The "mixins" below are like Dart `mixin`s that
+#                      add common columns (id, timestamps, organization_id).
 """SQLAlchemy declarative base and reusable column mixins.
 
 Responsibility: one shared `Base` (so Alembic sees every table) plus mixins
@@ -12,6 +16,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, declared_attr, mapped_column
 
 # Explicit constraint names make Alembic migrations deterministic and let us
 # drop/alter constraints by name later.
+# Gives constraints and indexes predictable names, so database migrations are stable.
 NAMING_CONVENTION = {
     "ix": "ix_%(column_0_label)s",
     "uq": "uq_%(table_name)s_%(column_0_name)s",
@@ -21,17 +26,21 @@ NAMING_CONVENTION = {
 }
 
 
+# Current time with time zone (UTC). We never use time without a zone.
 def utcnow() -> datetime:
     """Current time as timezone-aware UTC (never use naive datetimes)."""
     return datetime.now(UTC)
 
 
+# Parent of every table class (ORM model). ORM = maps a class to a database table.
 class Base(DeclarativeBase):
     """Parent of every ORM model."""
 
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
 
 
+# Adds a UUID `id` column. UUID = long random id that cannot be guessed.
+# Dart idea: `mixin IdMixin { final String id = Uuid().v4(); }`.
 class IdMixin:
     """UUID primary key.
 
@@ -42,6 +51,7 @@ class IdMixin:
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
 
 
+# Adds created_at and updated_at. `onupdate` refreshes updated_at on every change.
 class TimestampMixin:
     """created_at / updated_at maintained automatically."""
 
@@ -53,6 +63,8 @@ class TimestampMixin:
     )
 
 
+# IMPORTANT for security. Adds `organization_id` to a table = "this row belongs
+# to this company". All tenant data must be filtered by it (see db/tenant_repository.py).
 class TenantMixin:
     """Marks a table as tenant-owned by adding a mandatory organization_id.
 

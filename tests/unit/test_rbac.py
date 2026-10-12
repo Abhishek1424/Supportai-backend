@@ -1,3 +1,4 @@
+# Unit tests for role and permission rules. Pure functions.
 """Unit tests for the role/permission rules."""
 
 import pytest

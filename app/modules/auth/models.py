@@ -1,3 +1,9 @@
+# What is this file?   The `refresh_tokens` table.
+# Why?                 We save a hash of each refresh token so we can check it,
+#                      rotate it, and revoke it (logout / theft).
+# Idea: "family" = all tokens from ONE login. Each refresh makes a new token in the
+#       same family. If an OLD token is used again, someone may have stolen it,
+#       so the whole family is revoked.
 """Refresh-token storage."""
 
 import uuid

@@ -1,3 +1,5 @@
+# What is this file?   The list of actions we write into the audit log.
+# Flutter/Dart idea:   an enum of event names (like analytics event names).
 """Names of audited actions (a closed list, so logs are easy to filter)."""
 
 from enum import StrEnum

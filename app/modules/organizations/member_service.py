@@ -1,3 +1,9 @@
+# What is this file?   Business rules for managing team members.
+# Rules in here:       no giving higher roles than your own; the last owner cannot be
+#                      removed or demoted; every change writes an audit entry.
+# Flutter/Dart idea:   a `MemberService`. Notice it gets a MemberRepository that is
+#                      already limited to the caller's company. So a member id from
+#                      another company is simply "not found" (404).
 """Business logic for managing the team members of an organization."""
 
 import uuid
@@ -25,6 +31,7 @@ from app.modules.users.models import User
 from app.modules.users.repository import UserRepository
 
 
+# Constructor builds the repositories it needs from the session and context.
 class MemberService:
     """List, add, re-role and remove members of the CALLER's organization.
 
@@ -40,6 +47,7 @@ class MemberService:
         self.users = UserRepository(session)
         self.audit = AuditService(session, ctx.organization_id)
 
+    # Just passes search options to the repository.
     def list_members(
         self, params: PageParams, query: MemberListQuery
     ) -> tuple[list[OrganizationMember], int]:
@@ -48,6 +56,9 @@ class MemberService:
             params, q=query.q, sort_by=query.sort_by, sort_order=query.sort_order
         )
 
+    # Flow: check role rule -> find or create user -> check not already a member
+    #       -> create membership -> audit -> commit.
+    # Edge case: two requests at once; the unique constraint catches it -> 409.
     def add_member(self, data: MemberCreate) -> OrganizationMember:
         """Add a person to the organization with a role.
 
@@ -101,6 +112,8 @@ class MemberService:
         self.session.commit()
         return member
 
+    # Flow: load member (own company only) -> rank rule -> last-owner rule -> change ->
+    #   audit -> commit.
     def change_role(self, member_id: uuid.UUID, new_role: Role) -> OrganizationMember:
         """Change a member's role.
 
@@ -128,6 +141,8 @@ class MemberService:
         self.session.commit()
         return member
 
+    # Deletes the membership only (not the user account). The person's token stops working
+    #   at once.
     def remove_member(self, member_id: uuid.UUID) -> None:
         """Remove a member from the organization (their user account remains).
 
@@ -147,6 +162,8 @@ class MemberService:
         self.members.delete(member)
         self.session.commit()
 
+    # Helper: returns the member or throws NotFoundError. Same message for 'missing' and
+    #   'other company'.
     def _get_or_404(self, member_id: uuid.UUID) -> OrganizationMember:
         """Load a member of this tenant or raise NotFoundError (never leaks other tenants)."""
         member = self.members.get(member_id)
@@ -154,6 +171,7 @@ class MemberService:
             raise NotFoundError(ErrorCode.MEMBER_NOT_FOUND, "Member could not be found.")
         return member
 
+    # A company must always keep at least one owner.
     def _ensure_not_last_owner(self) -> None:
         """Raise if the organization has only one owner left.
 
@@ -165,6 +183,7 @@ class MemberService:
                 ErrorCode.LAST_OWNER, "An organization must keep at least one owner."
             )
 
+    # Small helper to write a member audit entry. Avoids repeating the same code.
     def _audit(
         self, action: AuditAction, member: OrganizationMember, details: dict[str, str]
     ) -> None:

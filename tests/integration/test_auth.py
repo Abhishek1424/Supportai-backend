@@ -1,3 +1,5 @@
+# API tests for register, login, refresh rotation, theft detection, logout, rate limit and
+#   error format. They call the real endpoints.
 """API tests for registration, login, refresh rotation, logout and /me."""
 
 from fastapi.testclient import TestClient

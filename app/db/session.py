@@ -1,3 +1,7 @@
+# What is this file?   Creates the database connection and gives each request its own Session.
+# Flutter/Dart idea:   `Engine` = the open Database object (like one `Database` from sqflite).
+#                      `Session` = a unit of work / transaction you use for one request.
+# Rule in this project: the SERVICE calls commit(). Repositories never commit.
 """Database engine and per-request session management.
 
 Transaction rule used across the app: SERVICES own the transaction. A service
@@ -15,6 +19,7 @@ from app.core.config import get_settings
 
 
 @lru_cache
+# Creates the connection pool ONCE (cached). A pool = a few reusable open connections.
 def get_engine() -> Engine:
     """Create the shared connection pool lazily (first use), then reuse it.
 
@@ -25,6 +30,7 @@ def get_engine() -> Engine:
 
 
 @lru_cache
+# Returns a function that makes new Sessions. Dart idea: a factory/constructor tear-off.
 def get_session_factory() -> sessionmaker[Session]:
     """Return the factory that builds Sessions bound to the shared engine.
 
@@ -34,6 +40,10 @@ def get_session_factory() -> sessionmaker[Session]:
     return sessionmaker(bind=get_engine(), expire_on_commit=False)
 
 
+# Dependency that gives every request its own Session and ALWAYS closes it.
+# `yield` = "give this to the endpoint, then come back and run the finally part".
+# Dart idea: `final db = open(); try { use(db); } finally { db.close(); }`.
+# If the service did not commit, closing the session throws the changes away (rollback).
 def get_db() -> Iterator[Session]:
     """FastAPI dependency: yield one Session per request, always close it.
 

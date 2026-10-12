@@ -1,3 +1,8 @@
+# What is this file?   JSON shape of an audit entry in the API response.
+# Flutter/Dart idea:   a response model class with toJson. `from_attributes=True`
+#                      means: build it directly from a database object.
+# Models (models.py) = database rows.  Schemas (schemas.py) = JSON sent to the app.
+# They are separate on purpose, so secret columns are never sent by accident.
 """API response schema for audit logs."""
 
 import uuid

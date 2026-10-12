@@ -1,3 +1,13 @@
+# What is this file?   Everything about passwords and tokens in one place.
+# Why?                 Security code should live in ONE small file that is easy to review.
+# Connects to:         auth/service.py calls these functions for register/login.
+#                      auth/deps.py calls decode_access_token on every protected call.
+# Flutter/Dart idea:   like a `CryptoService` class. (In Flutter you only store
+#                      the token. Here we create and check it.)
+#
+# Two kinds of tokens:
+#   access token  = short life (15 min). A JWT. Sent as "Authorization: Bearer ...".
+#   refresh token = long life (30 days). A random text. Used only to get a new access token.
 """Cryptographic primitives: password hashing, access JWTs, refresh tokens.
 
 Responsibility: the ONLY place that touches passwords, signing keys and token
@@ -25,18 +35,27 @@ from argon2.exceptions import InvalidHashError, VerificationError
 from app.core.config import get_settings
 from app.core.errors import ErrorCode, UnauthorizedError
 
+# JWT = JSON Web Token: a signed text that says "this is user X". The signature
+# stops people from changing it. HS256 is the signing method.
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_TYPE = "access"
 REFRESH_TOKEN_BYTES = 48  # 384 bits of randomness
 
+# Argon2 is a safe way to store passwords. We never save the real password,
+# only a "hash" (a one-way scrambled text). Nobody can turn it back.
 _hasher = PasswordHasher()
 
 # A real hash of a throwaway password. Login verifies against it when the email
 # is unknown so "unknown email" and "wrong password" take the same time
 # (prevents user enumeration through response-time differences).
+# A fake hash. If the email does not exist, we still check the password against
+# this fake one. So both cases take the same time and attackers cannot tell
+# which emails are registered.
 DUMMY_PASSWORD_HASH = _hasher.hash("not-a-real-password")
 
 
+# `frozen=True` = fields cannot change after creation.
+# Dart idea: a class where all fields are `final`.
 @dataclass(frozen=True)
 class AccessTokenClaims:
     """The verified contents of an access token."""
@@ -45,6 +64,8 @@ class AccessTokenClaims:
     organization_id: uuid.UUID
 
 
+# Input: plain password. Output: a safe hash to save in the database.
+# Called when: register, or when an admin adds a new member.
 def hash_password(password: str) -> str:
     """Hash a plaintext password for storage.
 
@@ -56,6 +77,8 @@ def hash_password(password: str) -> str:
     return _hasher.hash(password)
 
 
+# Input: password typed by the user + the saved hash. Output: true / false.
+# Called when: login. If the saved hash is broken, it returns false (never crashes).
 def verify_password(password: str, password_hash: str) -> bool:
     """Check a plaintext password against a stored hash.
 
@@ -72,6 +95,9 @@ def verify_password(password: str, password_hash: str) -> bool:
         return False
 
 
+# Makes the JWT. It only stores: user id (sub), organization id (org), type, expiry.
+# Role is NOT inside, so if a role changes, the change works at once.
+# Flutter idea: this is the token your app saves after login.
 def create_access_token(user_id: uuid.UUID, organization_id: uuid.UUID) -> str:
     """Issue a signed access JWT.
 
@@ -96,6 +122,8 @@ def create_access_token(user_id: uuid.UUID, organization_id: uuid.UUID) -> str:
     return jwt.encode(payload, settings.secret_key.get_secret_value(), algorithm=JWT_ALGORITHM)
 
 
+# Checks a JWT: signature, expiry, type. If anything is wrong -> raises UnauthorizedError.
+# Dart idea: like `JwtDecoder.decode()`, but it also VERIFIES the signature.
 def decode_access_token(token: str) -> AccessTokenClaims:
     """Verify an access JWT and return its claims.
 
@@ -128,11 +156,13 @@ def decode_access_token(token: str) -> AccessTokenClaims:
         ) from exc
 
 
+# Makes a long random text. The client keeps it; the database keeps only its hash.
 def generate_refresh_token() -> str:
     """Create a new random refresh token (returned to the client exactly once)."""
     return secrets.token_urlsafe(REFRESH_TOKEN_BYTES)
 
 
+# SHA-256 hash of the token. So if the database leaks, the real tokens do not leak.
 def hash_refresh_token(token: str) -> str:
     """Hash a refresh token for storage/lookup.
 

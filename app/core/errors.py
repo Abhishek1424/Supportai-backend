@@ -1,3 +1,11 @@
+# What is this file?   One standard format for every error the API returns:
+#                      {"error": {"code": "...", "message": "...", "request_id": "..."}}
+# Why?                 The Flutter app can check the stable `code` text instead
+#                      of reading messages. No stack trace is ever shown to users.
+# How it connects:     services `raise` an AppError. The handlers here catch it
+#                      and build the JSON. Services never build HTTP responses.
+# Flutter/Dart idea:   custom Exception classes + one place that maps them to
+#                      what the user sees (like a Dio error interceptor, reversed).
 """Centralized, structured error handling.
 
 Responsibility: define the application's error types and turn ANY exception
@@ -21,9 +29,13 @@ from fastapi.responses import JSONResponse
 from starlette import status
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+# `log` writes log lines. Flutter idea: the `logger` package.
 log = structlog.get_logger()
 
 
+# All error codes in one enum, so there are no "magic strings".
+# Dart idea: `enum ErrorCode { notFound, invalidCredentials, ... }`.
+# StrEnum means each value is also a plain String when sent as JSON.
 class ErrorCode(StrEnum):
     """Every machine-readable error code the API can return.
 
@@ -51,6 +63,8 @@ class ErrorCode(StrEnum):
     LAST_OWNER = "LAST_OWNER"
 
 
+# Base class of all expected errors. Dart idea: `class AppError implements Exception`.
+# Each child class sets an HTTP status code (400, 401, 403...).
 class AppError(Exception):
     """Base class for all expected (business) errors.
 
@@ -92,6 +106,8 @@ class ForbiddenError(AppError):
     status_code = status.HTTP_403_FORBIDDEN
 
 
+# IMPORTANT: another company's data also gives "not found" (404), not
+# "forbidden" (403). So attackers cannot learn which IDs exist.
 class NotFoundError(AppError):
     """The resource does not exist OR belongs to another tenant (HTTP 404).
 
@@ -114,6 +130,7 @@ class RateLimitedError(AppError):
     status_code = status.HTTP_429_TOO_MANY_REQUESTS
 
 
+# Builds the JSON map for an error. Dart idea: a `toJson()` method.
 def _error_body(request: Request, code: str, message: str, details: Any = None) -> dict[str, Any]:
     """Build the standard error JSON body.
 
@@ -135,6 +152,8 @@ def _error_body(request: Request, code: str, message: str, details: Any = None) 
     return {"error": error}
 
 
+# Runs when code does `raise SomeAppError(...)`. Dart idea: a catch block
+# that converts the exception into a response. `async def` = `Future` function.
 async def _handle_app_error(request: Request, exc: Exception) -> JSONResponse:
     """Convert an expected AppError into the standard response.
 
@@ -150,6 +169,8 @@ async def _handle_app_error(request: Request, exc: Exception) -> JSONResponse:
     )
 
 
+# Runs when the request body is wrong (bad email, missing field) -> HTTP 422.
+# We return only field names and messages, never the typed value (it could be a password).
 async def _handle_validation_error(request: Request, exc: Exception) -> JSONResponse:
     """Convert Pydantic request-validation failures into HTTP 422.
 
@@ -178,6 +199,8 @@ async def _handle_http_exception(request: Request, exc: Exception) -> JSONRespon
     )
 
 
+# The last safety net for real bugs. The full error goes to the logs.
+# The user only sees a generic message plus a request_id they can send to support.
 async def _handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
     """Last line of defense for bugs.
 
@@ -191,6 +214,7 @@ async def _handle_unexpected_error(request: Request, exc: Exception) -> JSONResp
     )
 
 
+# Connects the handlers above to the app. Called once from main.py.
 def register_exception_handlers(app: FastAPI) -> None:
     """Attach all handlers to the FastAPI app (called once from main.py)."""
     app.add_exception_handler(AppError, _handle_app_error)

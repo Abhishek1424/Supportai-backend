@@ -1,3 +1,8 @@
+# What is this file?   All settings in one place (database URL, secret key...).
+# Why?                 Wrong settings should fail at startup, not later.
+# Connects to:         everything calls get_settings() to read values.
+# Flutter/Dart idea:   a `Config` class that reads --dart-define / .env values
+#                      once and exposes them as typed fields.
 """Application configuration.
 
 Responsibility: read every setting from environment variables (or a local `.env`
@@ -15,17 +20,27 @@ from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # A short signing key is brute-forceable, which would let an attacker forge JWTs.
+# A short secret key is easy to guess. So we require at least 32 characters.
 MIN_SECRET_KEY_LENGTH = 32
 
 
+# Purpose: a class whose fields are filled from environment variables.
+#   DATABASE_URL in the environment  ->  `database_url` field here.
+# Closest Dart idea: a config class with `final` fields, filled by
+# `String.fromEnvironment('DATABASE_URL')`. Here Pydantic does it for you
+# and also checks the types (a bad value stops the app at start).
 class Settings(BaseSettings):
     """Typed view of the environment. Field names map to UPPER_CASE env vars."""
 
+    # Settings for the settings class: also read a local `.env` file,
+    # and ignore variables we do not know.
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     app_env: Literal["development", "test", "production"] = "development"
 
     # Infrastructure
+    # `str` has no `?`, so it is REQUIRED. If it is missing, the app will not start.
+    # Fields with `= something` have a default value (like optional named params).
     database_url: str
     redis_url: str | None = None  # When unset, rate limiting falls back to in-process memory.
 
@@ -41,6 +56,8 @@ class Settings(BaseSettings):
     auth_rate_limit_attempts: int = 10
     auth_rate_limit_window_seconds: int = 60
 
+    # A validator runs when the value is loaded. If it raises an error, startup stops.
+    # Flutter idea: an `assert` in a constructor.
     @field_validator("secret_key")
     @classmethod
     def secret_key_must_be_long_enough(cls, value: SecretStr) -> SecretStr:
@@ -61,6 +78,8 @@ class Settings(BaseSettings):
         return value
 
 
+# `lru_cache` remembers the result of the function. First call builds Settings.
+# Next calls return the SAME object. Flutter idea: a singleton / `late final`.
 @lru_cache
 def get_settings() -> Settings:
     """Return the process-wide Settings instance (built once, then cached).

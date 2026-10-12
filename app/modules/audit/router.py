@@ -1,3 +1,6 @@
+# What is this file?   The API endpoint for viewing the audit log: GET /api/v1/audit-logs
+# Flutter/Dart idea:   the "controller" / handler for one route.
+# Flow:  request -> check login + permission -> AuditService.search -> JSON page.
 """HTTP endpoints for viewing the audit log."""
 
 import uuid
@@ -12,11 +15,19 @@ from app.modules.audit.service import AuditService
 from app.modules.auth.deps import DbDep, TenantContext, require_permission
 from app.modules.rbac.constants import Permission
 
+# A group of routes with a shared URL prefix. Dart idea: a nested route group.
 router = APIRouter(prefix="/audit-logs", tags=["audit"])
 
+# `Depends(...)` = dependency injection. Before the function runs, FastAPI runs
+# `require_permission(AUDIT_READ)`. If the user is not allowed, the function never runs.
+# The result is a TenantContext (who is calling, which company, which role).
+# `Annotated[X, Depends(f)]` just saves a reusable name.
 AuditReadCtx = Annotated[TenantContext, Depends(require_permission(Permission.AUDIT_READ))]
 
 
+# Decorator = register this function as GET /audit-logs.
+# `response_model` = the shape of the JSON that will be returned.
+# Function parameters like `action: str | None` become URL query params (?action=...).
 @router.get("", response_model=Page[AuditLogOut])
 def list_audit_logs(
     params: PageParamsDep,

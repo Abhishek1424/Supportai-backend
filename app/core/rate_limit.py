@@ -1,3 +1,8 @@
+# What is this file?   Limits how many times someone can call login/register.
+# Why?                 Stops password guessing (brute force).
+# Two versions:        Redis (shared, for real servers) and memory (for local dev).
+# Flutter/Dart idea:   `RateLimiter` is an abstract class; the two classes below
+#                      are two implementations. You pick one at startup.
 """Rate limiting for abuse-prone endpoints (login, register, refresh).
 
 Responsibility: count hits per key (e.g. an IP address) in a fixed time window
@@ -19,6 +24,9 @@ from app.core.config import get_settings
 from app.core.errors import ErrorCode, RateLimitedError
 
 
+# Protocol = interface. Dart idea: `abstract class RateLimiter { int hit(String key, int
+#   window); }`.
+# Any class with a matching `hit` method counts, no "implements" keyword needed.
 class RateLimiter(Protocol):
     """Interface every backend implements."""
 
@@ -27,6 +35,8 @@ class RateLimiter(Protocol):
         ...
 
 
+# Counts in a Dart-like `Map<String, (expiry, count)>` inside this process.
+# The lock makes it safe when many requests run at the same time (threads).
 class InMemoryRateLimiter:
     """Fixed-window counter held in process memory (thread-safe)."""
 
@@ -54,6 +64,7 @@ class InMemoryRateLimiter:
             return count
 
 
+# Counts in Redis, a fast shared store. Many server copies can share one count.
 class RedisRateLimiter:
     """Fixed-window counter stored in Redis so all API instances share it."""
 
@@ -74,9 +85,14 @@ class RedisRateLimiter:
         return count
 
 
+# A private global that holds the one limiter. `None` = not created yet.
+# Dart idea: `RateLimiter? _limiter;`
 _limiter: RateLimiter | None = None
 
 
+# Dependency function: gives the router a limiter. FastAPI calls it for us
+# (see Depends(...) in auth/router.py). Tests can replace it with a fake.
+# Dart idea: a service locator / provider that creates the object the first time.
 def get_rate_limiter() -> RateLimiter:
     """FastAPI dependency returning the process-wide limiter.
 
@@ -95,6 +111,8 @@ def get_rate_limiter() -> RateLimiter:
     return _limiter
 
 
+# Counts one hit. If the caller is over the limit -> raises RateLimitedError (HTTP 429).
+# "Retry-After" tells the app how many seconds to wait.
 def enforce_rate_limit(limiter: RateLimiter, key: str) -> None:
     """Count a hit and raise if the caller is over the configured auth limit.
 

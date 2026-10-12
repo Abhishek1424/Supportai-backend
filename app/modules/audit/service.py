@@ -1,3 +1,8 @@
+# What is this file?   The one way other code writes to the audit log.
+# Why?                 Same format everywhere. Other services call `record(...)`.
+# Important:           It does NOT commit. The audit row is saved in the SAME
+#                      transaction as the action. Both succeed, or both fail.
+# Flutter/Dart idea:   a Service class that other services get through the constructor.
 """Audit service: the one way application code writes audit entries."""
 
 import uuid
@@ -12,6 +17,7 @@ from app.modules.audit.models import AuditLog
 from app.modules.audit.repository import AuditRepository
 
 
+# Holds a repository for one company. Created like `AuditService(db, organization_id)`.
 class AuditService:
     """Records and reads audit entries."""
 
@@ -20,6 +26,8 @@ class AuditService:
         self.repo = AuditRepository(session, organization_id)
         self.organization_id = organization_id
 
+    # Adds one audit row. Think: `auditService.record(action, actorId: ..., details:
+    #   {...})`.
     def record(
         self,
         action: AuditAction,
@@ -57,6 +65,8 @@ class AuditService:
             )
         )
 
+    # Thin pass-through. It exists so the router talks to a service, not to a repository
+    #   directly.
     def search(
         self,
         params: PageParams,

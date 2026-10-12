@@ -1,3 +1,6 @@
+# What is this file?   JSON models for organization and member endpoints.
+# Flutter/Dart idea:   request/response model classes with validation.
+# `MemberOut` has no password field. A secret cannot be sent by mistake.
 """Request/response schemas for organizations and members."""
 
 import uuid
@@ -51,6 +54,8 @@ class MemberOut(BaseModel):
     created_at: datetime
 
 
+# Body of POST /members. `full_name` and `password` are optional (only for brand-new
+#   people).
 class MemberCreate(BaseModel):
     """Add a person to the organization.
 
@@ -79,6 +84,8 @@ class MemberRoleUpdate(BaseModel):
     role: Role
 
 
+# Search and sort options. `Literal[...]` = only these text values are allowed (like a Dart
+#   enum).
 class MemberListQuery(BaseModel):
     """Search/sort options for the member list."""
 

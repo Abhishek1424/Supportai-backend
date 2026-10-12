@@ -1,3 +1,4 @@
+# API tests for team management, role rules, last-owner rule and audit logs.
 """API tests for organization/member management, RBAC and the audit log."""
 
 from fastapi.testclient import TestClient

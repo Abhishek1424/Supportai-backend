@@ -1,3 +1,11 @@
+# What is this file?   The security guard for protected endpoints.
+# Why?                 Turns "Authorization: Bearer <token>" into a trusted TenantContext.
+# How it is used:      endpoints write `Depends(require_permission(...))` and the
+#                      framework runs this code first.
+# Flutter/Dart idea:   like an auth interceptor + permission check, but on the SERVER.
+#                      TenantContext ~ an immutable `CurrentUser` object you pass around.
+# Security rule: the company id comes ONLY from the verified token + database.
+#                Never from the request body or query.
 """Authentication & authorization dependencies shared by every protected route.
 
 Responsibility: turn "Authorization: Bearer <jwt>" into a trusted
@@ -24,12 +32,17 @@ from app.modules.organizations.repository import OrganizationRepository
 from app.modules.rbac.constants import Permission, Role, permissions_for
 from app.modules.users.models import User
 
+# Shortcut: `db: DbDep` means 'give me a database Session for this request' (see
+#   db/session.py).
 DbDep = Annotated[Session, Depends(get_db)]
 
 # auto_error=False so WE return our standard error body when the header is missing.
+# Reads the `Authorization: Bearer ...` header. `auto_error=False` lets us return our own
+#   error JSON.
 _bearer_scheme = HTTPBearer(auto_error=False)
 
 
+# An immutable data class. Dart idea: all fields `final`.
 @dataclass(frozen=True)
 class TenantContext:
     """Everything a service needs to know about the caller. Immutable."""
@@ -46,6 +59,15 @@ class TenantContext:
         return self.user.id
 
 
+# Flow on EVERY protected request:
+#  1. Read the token from the header. Missing -> 401.
+#  2. Verify signature + expiry (core/security.py).
+#  3. Load the user's membership from the DATABASE. This is why removing a member
+#     or suspending a company works immediately, even if the token is not expired.
+#  4. Check the user and company are active.
+#  5. Save user_id / organization_id on request.state (the logger prints them).
+#  6. Return TenantContext (user, company id, role, permissions).
+# Flutter idea: the function that builds "who is the current user?" for each call.
 def get_current_context(
     request: Request,
     db: DbDep,
@@ -88,6 +110,9 @@ def get_current_context(
     )
 
 
+# A function that RETURNS a function (a "factory"). Dart idea: a closure.
+# Use:  `ctx = Depends(require_permission(Permission.MEMBERS_MANAGE))`.
+# If the role does not have the permission -> 403 and the endpoint code never runs.
 def require_permission(permission: Permission):  # type: ignore[no-untyped-def]
     """Build a dependency that only lets callers holding `permission` through.
 

@@ -1,3 +1,5 @@
+# The MOST important tests: company A must never see or change company B's data. Add a test
+#   here for every new tenant endpoint.
 """Tenant isolation: Client A must never see or touch Client B's data.
 
 These are the most important tests in the project. Every new tenant-owned

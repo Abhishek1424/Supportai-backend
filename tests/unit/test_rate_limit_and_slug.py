@@ -1,3 +1,4 @@
+# Unit tests for the in-memory rate limiter and slug maker.
 """Unit tests for the in-memory rate limiter and slug generation."""
 
 import time

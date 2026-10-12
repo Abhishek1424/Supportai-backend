@@ -1,5 +1,8 @@
 # S3-compatible storage (MinIO) is added in Module 2 when document upload is built.
 # Local infrastructure only (the API itself runs with `uv run uvicorn`).
+# Starts helper programs in Docker (like a one-command local test server):
+#   postgres = the database,  redis = fast store (rate limiting, later Celery).
+# Run: docker compose up -d
 services:
   postgres:
     image: pgvector/pgvector:pg17   # Postgres + pgvector, needed from the knowledge-base module on

@@ -1,3 +1,7 @@
+# What is this file?   Queries for companies and members.
+# Two repositories:    OrganizationRepository  - lookups needed BEFORE we know the company
+#                                                (login, token check).
+#                      MemberRepository        - tenant-safe; always limited to one company.
 """Data access for organizations and memberships."""
 
 import uuid
@@ -11,6 +15,8 @@ from app.modules.organizations.models import Organization, OrganizationMember
 from app.modules.users.models import User
 
 # Allowlist mapping API sort keys to columns. User input never becomes SQL text.
+# Allow-list: the app sends sort_by as text; we map it to a real column. User text never
+#   goes into SQL directly.
 MEMBER_SORT_COLUMNS = {
     "created_at": OrganizationMember.created_at,
     "role": OrganizationMember.role,
@@ -19,6 +25,7 @@ MEMBER_SORT_COLUMNS = {
 }
 
 
+# Cross-company lookups. Use it only before authentication.
 class OrganizationRepository:
     """Cross-tenant lookups needed BEFORE a tenant context exists (login, token check).
 
@@ -36,6 +43,7 @@ class OrganizationRepository:
         self.session.flush()
         return organization
 
+    # Used on EVERY request to re-check the user is still a member.
     def get_membership(
         self, user_id: uuid.UUID, organization_id: uuid.UUID
     ) -> OrganizationMember | None:
@@ -61,6 +69,7 @@ class OrganizationRepository:
         )
 
 
+# Child of TenantRepository: all queries here include the company filter.
 class MemberRepository(TenantRepository):
     """Tenant-scoped access to OrganizationMember rows."""
 
@@ -104,6 +113,8 @@ class MemberRepository(TenantRepository):
         self.session.delete(member)
         self.session.flush()
 
+    # Search + sort + page. `icontains(autoescape=True)` = case-insensitive 'contains' that
+    #   treats % and _ as normal text.
     def search(
         self, params: PageParams, *, q: str | None, sort_by: str, sort_order: str
     ) -> tuple[list[OrganizationMember], int]:

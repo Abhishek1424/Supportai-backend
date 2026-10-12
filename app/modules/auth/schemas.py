@@ -1,3 +1,7 @@
+# What is this file?   Request and response models for auth endpoints (JSON shapes).
+# Flutter/Dart idea:   like request/response model classes, but with VALIDATION built in.
+#                      If the JSON is wrong, FastAPI returns HTTP 422 before your code runs.
+# Example: `email: EmailStr` must look like an email. `Field(min_length=10)` checks length.
 """Request/response schemas for authentication."""
 
 import uuid
@@ -12,11 +16,13 @@ from app.modules.organizations.schemas import (
 from app.modules.rbac.constants import Permission, Role
 
 
+# Trim spaces and make lowercase, so A@x.com and a@x.com are the same account.
 def _normalise_email(value: str) -> str:
     """Trim + lower-case emails so lookups are case-insensitive."""
     return value.strip().lower()
 
 
+# The JSON the Flutter/web app sends to sign up.
 class RegisterRequest(BaseModel):
     """Sign up a new business: creates the user AND their organization."""
 
@@ -45,6 +51,7 @@ class RefreshRequest(BaseModel):
     refresh_token: str = Field(min_length=1, max_length=512)
 
 
+# What the backend returns after login: both tokens and how long the access token lives.
 class TokenPair(BaseModel):
     """Credentials returned after register/login/refresh."""
 
@@ -62,6 +69,7 @@ class UserOut(BaseModel):
     full_name: str
 
 
+# Answer of GET /auth/me. The UI uses `permissions` to decide what to show.
 class MeOut(BaseModel):
     """Who am I, where, and what may I do (used by frontends to render the UI)."""
 

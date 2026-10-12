@@ -1,3 +1,5 @@
+# What is this file?   Business logic for the company itself (get, rename, create).
+# Flutter/Dart idea:   an `OrganizationService`. Routers call it; it calls repositories.
 """Business logic for the current organization (tenant)."""
 
 import re
@@ -15,6 +17,7 @@ from app.modules.organizations.repository import OrganizationRepository
 SLUG_MAX_BASE_LENGTH = 60
 
 
+# Makes a URL-friendly id like 'abc-insurance-3f9a1c' from a name.
 def make_slug(name: str) -> str:
     """Build a unique URL-friendly slug from an organization name.
 
@@ -33,6 +36,7 @@ def make_slug(name: str) -> str:
     return f"{base}-{secrets.token_hex(3)}"
 
 
+# Created per request with the database session and the TenantContext (who is calling).
 class OrganizationService:
     """Read and update the caller's own organization."""
 
@@ -42,6 +46,8 @@ class OrganizationService:
         self.ctx = ctx
         self.repo = OrganizationRepository(session)
 
+    # Always loads the CALLER'S company (id from the verified context). A caller cannot ask
+    #   for another company.
     def get_current(self) -> Organization:
         """Return the caller's organization.
 
@@ -59,6 +65,7 @@ class OrganizationService:
             )
         return organization
 
+    # Rename -> write audit entry -> commit once. Audit and rename are saved together.
     def update_current(self, name: str) -> Organization:
         """Rename the caller's organization and audit the change.
 
@@ -84,6 +91,8 @@ class OrganizationService:
         return organization
 
 
+# A plain function (not in the class). Registration uses it. It does not commit; register()
+#   commits everything together.
 def create_organization(session: Session, name: str) -> Organization:
     """Create a new tenant (used by registration).
 

@@ -1,3 +1,8 @@
+# What is this file?   Logging setup + a middleware that gives every request an ID.
+# Why?                 When something fails, you can search logs by request_id and
+#                      see the whole story of ONE request.
+# Flutter/Dart idea:   the `logger` package + a Dio interceptor that adds an
+#                      X-Request-ID header and logs time taken.
 """Structured logging setup and the request-context middleware.
 
 Responsibility: emit logs as key/value events (JSON in production) and make
@@ -18,9 +23,12 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 from starlette.requests import Request
 from starlette.responses import Response
 
+# Name of the HTTP header that carries the request ID.
 REQUEST_ID_HEADER = "X-Request-ID"
 
 
+# Called once at startup. In production, logs are JSON (easy for tools).
+# In development, logs are colourful text (easy for you).
 def configure_logging(app_env: str) -> None:
     """Configure structlog + stdlib logging once at startup.
 
@@ -45,9 +53,14 @@ def configure_logging(app_env: str) -> None:
     )
 
 
+# Purpose: a middleware class (code that wraps every request).
+# Flutter idea: like a Dio `Interceptor` with onRequest + onResponse in one place.
 class RequestContextMiddleware(BaseHTTPMiddleware):
     """Assigns a request_id to every request and logs one summary line per request."""
 
+    # Called for every request. `call_next(request)` runs the real endpoint.
+    # Code BEFORE call_next = "onRequest". Code AFTER = "onResponse".
+    # Flow: make id -> run endpoint -> write one log line -> add id to response header.
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         """Wrap a request with an id, timing and a completion log.
 
@@ -66,6 +79,9 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         """
         request_id = request.headers.get(REQUEST_ID_HEADER, "")[:64] or uuid.uuid4().hex
         request.state.request_id = request_id
+        # "contextvars" = values that follow ONE request automatically, even through
+        # many function calls. Flutter idea: a Zone value (`Zone.current`), very roughly.
+        # Here, request_id is attached to every log line of this request.
         structlog.contextvars.clear_contextvars()
         structlog.contextvars.bind_contextvars(request_id=request_id)
 

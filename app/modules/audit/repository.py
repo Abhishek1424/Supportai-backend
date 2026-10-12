@@ -1,3 +1,5 @@
+# What is this file?   Queries for audit logs. Child of TenantRepository, so every
+#                      query is limited to ONE company automatically.
 """Data access for audit logs (tenant-scoped)."""
 
 import uuid
@@ -10,6 +12,7 @@ from app.db.tenant_repository import TenantRepository
 from app.modules.audit.models import AuditLog
 
 
+# `model = AuditLog` tells the parent class which table to filter.
 class AuditRepository(TenantRepository):
     """Reads and appends audit entries for ONE organization."""
 
@@ -19,6 +22,10 @@ class AuditRepository(TenantRepository):
         """Stage a new entry. The caller's transaction commits it together with the action."""
         self.session.add(entry)
 
+    # List audit entries with optional filters and paging. Returns (rows, total).
+    # Dart idea: returns a record `(List<AuditLog>, int)`.
+    # Build filter list -> count query -> page query (limit/offset). `self._scoped(...)`
+    # adds the company filter to both queries.
     def search(
         self,
         params: PageParams,

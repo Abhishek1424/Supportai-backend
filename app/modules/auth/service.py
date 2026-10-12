@@ -1,3 +1,11 @@
+# What is this file?   The business logic of authentication.
+# Why?                 Routers stay thin. All rules live here: register, login,
+#                      refresh (token rotation), logout.
+# Flutter/Dart idea:   an `AuthService` class. Your Flutter AuthService calls the API;
+#                      this one IS the API side. It uses repositories (data) and security
+#                        helpers.
+# Flow of login:  router -> AuthService.login -> UserRepository -> verify password
+#                 -> create tokens -> audit -> commit -> TokenPair.
 """Authentication business logic: register, login, refresh (rotation), logout."""
 
 import uuid
@@ -36,9 +44,11 @@ from app.modules.rbac.constants import Role
 from app.modules.users.models import User
 from app.modules.users.repository import UserRepository
 
+# A logger. Dart idea: `final log = Logger();`.
 log = structlog.get_logger()
 
 
+# Gets its helpers through the constructor (dependency injection).
 class AuthService:
     """Everything about proving identity and issuing tokens."""
 
@@ -57,6 +67,10 @@ class AuthService:
         self.orgs = OrganizationRepository(session)
         self.tokens = RefreshTokenRepository(session)
 
+    # Creates a company + its owner user and logs them in, all in ONE transaction.
+    # Dart idea: like running several database writes inside one `db.transaction(...)`.
+    # If the same email registers twice at the same time, the database unique index
+    # stops the second one and we return a friendly 409.
     def register(self, data: RegisterRequest) -> TokenPair:
         """Create a new user + organization and log them in.
 
@@ -105,6 +119,9 @@ class AuthService:
         self.session.commit()
         return pair
 
+    # Check password -> pick the company -> make tokens -> write audit -> commit.
+    # Wrong email and wrong password give the SAME error on purpose (no information leak).
+    # Rate limit is checked first (by IP and by email).
     def login(self, data: LoginRequest) -> TokenPair:
         """Verify email + password and issue tokens for one organization.
 
@@ -155,6 +172,9 @@ class AuthService:
         self.session.commit()
         return pair
 
+    # Swap an old refresh token for a new pair (ROTATION).
+    # If an already-used token comes again -> possible theft -> revoke the whole family.
+    # Flutter idea: this is what your Dio interceptor calls when it gets a 401.
     def refresh(self, raw_token: str) -> TokenPair:
         """Exchange a refresh token for a new access + refresh pair (rotation).
 
@@ -206,6 +226,7 @@ class AuthService:
         self.session.commit()
         return pair
 
+    # Revokes the refresh token family. Safe to call twice; unknown tokens are ignored.
     def logout(self, raw_token: str) -> None:
         """Revoke the refresh-token family so the session cannot be renewed.
 
@@ -217,6 +238,8 @@ class AuthService:
             self.tokens.revoke_family(stored.family_id, utcnow())
             self.session.commit()
 
+    # Private helper (starts with `_`). Makes the JWT and saves the refresh-token HASH.
+    # Returns the real refresh token only here; the database never sees it.
     def _issue_tokens(
         self, user_id: uuid.UUID, organization_id: uuid.UUID, family_id: uuid.UUID
     ) -> TokenPair:

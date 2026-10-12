@@ -1,3 +1,8 @@
+# Shared test setup (pytest). Flutter idea: `setUp`/`setUpAll` + test helpers in one file.
+# Fixtures = functions that prepare things for tests. A test receives a fixture by naming it
+# as a parameter (like dependency injection for tests).
+# Tests use a REAL PostgreSQL database and the real migrations, so they behave like
+#   production.
 """Shared test fixtures.
 
 Tests run against a REAL PostgreSQL (set TEST_DATABASE_URL), created via the
@@ -31,6 +36,8 @@ from app.main import create_app  # noqa: E402
 
 
 @pytest.fixture(scope="session", autouse=True)
+# Runs once: drops and rebuilds the schema with the real Alembic migrations. Like
+#   `setUpAll`.
 def _migrated_database() -> None:
     """Rebuild the schema once per test run by applying every Alembic migration."""
     with get_engine().begin() as conn:
@@ -40,6 +47,8 @@ def _migrated_database() -> None:
 
 
 @pytest.fixture(autouse=True)
+# After every test, empties all tables. Like `tearDown`. `yield` splits setup (before) and
+#   cleanup (after).
 def _clean_tables() -> Iterator[None]:
     """Empty every table after each test so tests cannot affect each other."""
     yield
@@ -49,6 +58,8 @@ def _clean_tables() -> Iterator[None]:
 
 
 @pytest.fixture
+# A fake HTTP client for the whole app. Like calling the API without a real network. It also
+#   swaps the rate limiter for a fresh one.
 def client() -> Iterator[TestClient]:
     """HTTP client against the full app, with an isolated in-memory rate limiter."""
     app = create_app()
@@ -59,6 +70,7 @@ def client() -> Iterator[TestClient]:
 
 
 @dataclass
+# Small data class: an example user and token. Dart idea: a plain data class for tests.
 class Account:
     """A registered user plus the credentials tests need."""
 
@@ -76,6 +88,7 @@ class Account:
 DEFAULT_PASSWORD = "correct-horse-battery"
 
 
+# Helper: signs up through the real API and returns the tokens.
 def register_account(
     client: TestClient, email: str = "owner@abc.com", org_name: str = "ABC Insurance"
 ) -> Account:
@@ -94,6 +107,7 @@ def register_account(
     return Account(email, DEFAULT_PASSWORD, body["access_token"], body["refresh_token"])
 
 
+# Helper: owner adds a member, then that member logs in.
 def add_member(
     client: TestClient, owner: Account, email: str, role: str, password: str = DEFAULT_PASSWORD
 ) -> Account:

@@ -1,3 +1,8 @@
+# What is this file?   Setup for database migrations (Alembic).
+# Flutter/Dart idea:   like sqflite's onUpgrade / Drift migrations. A migration is a
+#                      script that changes the database structure (create table, add
+#                        column).
+# Run:  `uv run alembic upgrade head` applies all new migrations.
 """Alembic environment: tells Alembic which database and which models to use."""
 
 from logging.config import fileConfig
@@ -21,6 +26,7 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
+# Connects to the database and applies pending migrations in one transaction.
 def run_migrations_online() -> None:
     """Run migrations against the live database from DATABASE_URL.
 
